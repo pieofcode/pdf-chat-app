@@ -19,7 +19,9 @@ env_name = os.environ["APP_ENV"] if "APP_ENV" in os.environ else "local"
 
 # Load env settings
 env_file_path = Path(f"./.env.{env_name}")
-dotenv.load_dotenv(dotenv_path=env_file_path)
+print(f"Loading environment from: {env_file_path}")
+with open(env_file_path) as f:
+    dotenv.load_dotenv(dotenv_path=env_file_path)
 # print(os.environ)
 
 
@@ -28,6 +30,8 @@ if os.environ["OPENAI_CONFIG"] == "AZURE":
     openai.api_type = "azure"
     openai.api_version = os.environ["AZ_API_VERSION"]
     openai.api_key = os.environ["AZ_OPENAI_API_KEY"]
+else:
+    openai.api_key = os.environ["OPENAI_API_KEY"]
 
 
 def handle_user_input(question):

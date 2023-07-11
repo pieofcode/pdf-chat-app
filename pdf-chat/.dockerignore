@@ -6,7 +6,6 @@ devenv
 **/.gitignore
 **/.vscode
 **/coverage
-**/.env.*
 **/.aws
 **/.ssh
 Dockerfile
