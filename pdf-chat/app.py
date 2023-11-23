@@ -1,9 +1,9 @@
 import os
 import streamlit as st
 from pathlib import Path
-import openai
+from openai import AzureOpenAI
 import dotenv
-
+from framework.text_loader import *
 from langchain.schema import (
     AIMessage,
     HumanMessage,
@@ -13,7 +13,6 @@ from langchain.schema import (
 from langchain.callbacks import get_openai_callback
 
 from html_template import css, bot_template, user_template
-from framework.text_loader import *
 
 env_name = os.environ["APP_ENV"] if "APP_ENV" in os.environ else "local"
 
@@ -24,14 +23,17 @@ with open(env_file_path) as f:
     dotenv.load_dotenv(dotenv_path=env_file_path)
 # print(os.environ)
 
+openai.api_type: str = "azure"
+openai.api_key = os.getenv("AZURE_OPENAI_API_KEY")
+openai.api_base = os.getenv("AZURE_OPENAI_ENDPOINT")
+openai.api_version = os.getenv("AZURE_OPENAI_API_VERSION")
+model: str = os.getenv("AZURE_EMBEDDING_DEPLOYMENT_NAME")
 
-if os.environ["OPENAI_CONFIG"] == "AZURE":
-    openai.api_base = os.environ["AZ_OPENAI_API_BASE"]
-    openai.api_type = "azure"
-    openai.api_version = os.environ["AZ_API_VERSION"]
-    openai.api_key = os.environ["AZ_OPENAI_API_KEY"]
-else:
-    openai.api_key = os.environ["OPENAI_API_KEY"]
+openai_client = AzureOpenAI(
+    api_key=os.getenv("AZURE_OPENAI_API_KEY"),
+    api_version=os.getenv("AZURE_OPENAI_API_VERSION"),
+    azure_endpoint=os.getenv("AZURE_OPENAI_ENDPOINT")
+)
 
 
 def handle_user_input(question):
@@ -62,26 +64,9 @@ def handle_user_input(question):
         print(cb)
 
 
-def init_az_openai_env():
-    global openai
-
-    openai.api_base = os.environ["AZ_OPENAI_API_BASE"]
-    openai.api_type = "azure"
-    openai.api_version = os.environ["AZ_API_VERSION"]
-    openai.api_key = os.environ["AZ_OPENAI_API_KEY"]
-
-    # https://github.com/hwchase17/langchain/issues/2096
-    # https://github.com/hwchase17/langchain/issues/4575
-    # This issue prevents multiple chunks to be added using Azure Text Embedding models
-
-
-def init_openai_env():
-    pass
-
-
 def main():
 
-    st.set_page_config("PDF Chatbot", page_icon=":books:")
+    st.set_page_config(page_title="PDF Chatbot", page_icon=":books:")
     st.write(css, unsafe_allow_html=True)
 
     # Initialize Session state
@@ -130,6 +115,9 @@ def main():
                         vector_store=vector_store)
 
                     st.session_state.has_vectorized_data = True
+
+        add_sidebar = st.sidebar.selectbox(
+            "EDSP Data Science", ('Data Engineering', 'Model Training'))
 
 
 if __name__ == "__main__":
