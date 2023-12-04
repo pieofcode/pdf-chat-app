@@ -4,6 +4,7 @@ from pathlib import Path
 from openai import AzureOpenAI
 import dotenv
 from framework.text_loader import *
+from framework.az_ai_search_helper import *
 from langchain.schema import (
     AIMessage,
     HumanMessage,
@@ -46,9 +47,9 @@ def handle_user_input(question):
         response = st.session_state.conversation({"question": question})
         st.session_state.chat_history = response['chat_history']
         # st.write(response)
-        print(f"Chat History Type: {type(st.session_state.chat_history)}")
+        # print(f"Chat History Type: {type(st.session_state.chat_history)}")
         for i, message in enumerate(reversed(st.session_state.chat_history)):
-
+            print(F"Idx: {i}, Message: {message}")
             if type(message) == HumanMessage:
                 st.write(user_template.replace(
                     "{{MSG}}", message.content), unsafe_allow_html=True)
@@ -78,6 +79,9 @@ def main():
     if "has_vectorized_data" not in st.session_state:
         st.session_state.has_vectorized_data = None
 
+    if "use_az_search_vector_store" not in st.session_state:
+        st.session_state.use_az_search_vector_store = None
+
     st.header("Chat with your Data :books:")
     user_question = st.text_input("Ask a question about your documents:")
     if user_question:
@@ -89,35 +93,62 @@ def main():
         "{{MSG}}", "Hello Human!"), unsafe_allow_html=True)
 
     with st.sidebar:
-        st.subheader("Your documents")
-        pdf_docs = st.file_uploader(
-            "Upload your PDFs here and click on 'Process' ", accept_multiple_files=True)
-        if st.button("Process", type="primary"):
 
-            if len(pdf_docs) != 0:
+        on = st.toggle('Use Azure AI Search Vector Store', value=True)
+        if on and (not st.session_state.use_az_search_vector_store):
+            st.session_state.use_az_search_vector_store = True
+            with st.spinner("Processing"):
+                indices = get_az_search_indices()
+                selected_index = st.selectbox(
+                    'Choose Vector Index to use',
+                    indices
+                )
+                # Step 3: Create embeddings and store in Vector store
+                vector_store = get_az_search_vector_store(selected_index)
 
-                # process the information from PDFs
-                with st.spinner("Processing"):
+                # Step 4: Get conversation chain
+                st.session_state.conversation = get_conversation_chain(
+                    vector_store=vector_store)
 
-                    # Step 1: Get raw contents from PDFs
-                    raw_text = get_pdf_text(pdf_docs)
+                st.write('You selected:', selected_index)
+                st.session_state.has_vectorized_data = True
 
-                    # Step 2: Get the chunks of the text
-                    text_chunks = get_text_chunks(raw_text)
-                    st.write(f"Total length of the chunks: {len(text_chunks)}")
-                    st.write(text_chunks)
+        elif not on and st.session_state.use_az_search_vector_store:
+            # st.session_state.use_az_search_vector_store = server = flask.Flask(
+            #     __name__)
+            st.session_state.use_az_search_vector_store = False
+            st.subheader("Choose your knowledge base")
+            pdf_docs = st.file_uploader(
+                "Upload your PDFs here and click on 'Process' ", accept_multiple_files=True)
+            if st.button("Process", type="primary"):
 
-                    # Step 3: Create embeddings and store in Vector store
-                    vector_store = get_vectors(text_chunks)
+                if len(pdf_docs) != 0:
 
-                    # Step 4: Get conversation chain
-                    st.session_state.conversation = get_conversation_chain(
-                        vector_store=vector_store)
+                    # process the information from PDFs
+                    with st.spinner("Processing"):
 
-                    st.session_state.has_vectorized_data = True
+                        # Step 1: Get raw contents from PDFs
+                        raw_text = get_pdf_text(pdf_docs)
 
-        add_sidebar = st.sidebar.selectbox(
-            "EDSP Data Science", ('Data Engineering', 'Model Training'))
+                        # Step 2: Get the chunks of the text
+                        text_chunks = get_text_chunks(raw_text)
+                        st.write(
+                            f"Total length of the chunks: {len(text_chunks)}")
+                        st.write(text_chunks)
+
+                        # Step 3: Create embeddings and store in Vector store
+                        vector_store = get_vectors(text_chunks)
+
+                        # Step 4: Get conversation chain
+                        st.session_state.conversation = get_conversation_chain(
+                            vector_store=vector_store)
+
+                        st.session_state.has_vectorized_data = True
+        else:
+            print("No action taken")
+
+        # add_sidebar = st.sidebar.selectbox(
+        #     "EDSP Data Science", ('Data Engineering', 'Model Training'))
 
 
 if __name__ == "__main__":

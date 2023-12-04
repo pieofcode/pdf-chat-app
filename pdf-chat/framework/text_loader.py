@@ -11,9 +11,13 @@ from langchain.chat_models import ChatOpenAI, AzureChatOpenAI
 from langchain.embeddings import AzureOpenAIEmbeddings
 from langchain.memory import ConversationBufferMemory
 from langchain.chains import ConversationalRetrievalChain
+from azure.core.credentials import AzureKeyCredential
+from azure.search.documents import SearchClient, SearchIndexingBufferedSender
+from azure.search.documents.indexes import SearchIndexClient
+from langchain.vectorstores.azuresearch import AzureSearch
 from pathlib import Path
 import dotenv
-
+from .az_ai_search_helper import *
 
 env_name = os.environ["APP_ENV"] if "APP_ENV" in os.environ else "local"
 
@@ -84,7 +88,6 @@ def get_text_chunks(text):
 def get_vectors(chunks):
 
     global embeddings
-
     if not embeddings:
         print("Embeddings not initialized. Initializing now.")
         return
@@ -97,6 +100,27 @@ def get_vectors(chunks):
     # text_embedding_pairs = zip(chunks, text_embeddings)
     # text_embedding_pairs_list = list(text_embedding_pairs)
     # vector_store = FAISS.from_embeddings(text_embedding_pairs_list, embeddings)
+
+    return vector_store
+
+
+def get_az_search_vector_store(index_name):
+
+    global embeddings
+    if not embeddings:
+        print("Embeddings not initialized. Initializing now.")
+        return
+
+    fields = get_index_fields(index_name)
+    print(f"Index Fields: {fields}")
+
+    vector_store: AzureSearch = AzureSearch(
+        azure_search_endpoint=os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"],
+        azure_search_key=os.environ["AZURE_SEARCH_ADMIN_KEY"],
+        index_name=index_name,
+        embedding_function=embeddings.embed_query,
+        fields=fields
+    )
 
     return vector_store
 
