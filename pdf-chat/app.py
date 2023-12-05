@@ -37,128 +37,40 @@ openai_client = AzureOpenAI(
 )
 
 
-def handle_user_input(question):
-    with get_openai_callback() as cb:
-        if not st.session_state.has_vectorized_data:
-            st.write(
-                "Please upload your documents and hit Process to build vector store.")
-            return
-
-        response = st.session_state.conversation({"question": question})
-        st.session_state.chat_history = response['chat_history']
-        # st.write(response)
-        # print(f"Chat History Type: {type(st.session_state.chat_history)}")
-        for i, message in enumerate(reversed(st.session_state.chat_history)):
-            print(F"Idx: {i}, Message: {message}")
-            if type(message) == HumanMessage:
-                st.write(user_template.replace(
-                    "{{MSG}}", message.content), unsafe_allow_html=True)
-
-            elif type(message) == AIMessage:
-                st.write(bot_template.replace(
-                    "{{MSG}}", message.content), unsafe_allow_html=True)
-
-            else:
-                st.write(
-                    f"Error displaying message of Type[{type(message)}], Content[{message.content}]")
-
-        print(cb)
-
-
 def main():
 
-    st.set_page_config(page_title="PDF Chatbot", page_icon=":books:")
-    st.write(css, unsafe_allow_html=True)
+    st.set_page_config(page_title="RAG App Accelerator", page_icon=":books:")
 
-    # Initialize Session state
-    if "conversation" not in st.session_state:
-        st.session_state.conversation = None
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = None
+    st.image("img/Cognitive-Search.svg", width=78)
 
-    if "has_vectorized_data" not in st.session_state:
-        st.session_state.has_vectorized_data = None
+    st.write(
+        """
+        # RAG App Accelerator
 
-    if "use_az_search_vector_store" not in st.session_state:
-        st.session_state.use_az_search_vector_store = None
+        Welcome! 👋 This accelerator shows various solutions I am working on to showcase the power of 
+        Azure OpenAI and Cognitive Search to build RAG (Retrieval Augmented Generation) based solutions. 
+        Each page is a demonstration of specific feature or capability of various patterns/approaches of LLM Apps.
+        ✨
+        """
+    )
 
-    if "selected_index" not in st.session_state:
-        st.session_state.selected_index = None
+    st.info(
+        """
+        Need to include a tpoic or a capability that's not on here?
+        [Let me know by opening a GitHub issue!](https://github.com/pieofcode/pdf-chat-app/issues)
+        """,
+        icon="👾",
+    )
 
-    st.header("Chat with your Data :books:")
-    user_question = st.text_input("Ask a question about your documents:")
-    if user_question:
-        handle_user_input(user_question)
+    st.write("\n\n")
+    st.markdown("#### Reference Architecture")
+    st.write(
+        """
+        This is a typical architecture of a RAG based app leveraging Azure Platform Services. 
+        """
+    )
 
-    st.write(user_template.replace(
-        "{{MSG}}", "Hello Bot!"), unsafe_allow_html=True)
-    st.write(bot_template.replace(
-        "{{MSG}}", "Hello Human!"), unsafe_allow_html=True)
-
-    with st.sidebar:
-
-        on = st.toggle('Use Azure AI Search Vector Store', value=True)
-        if on:
-            if (st.session_state.use_az_search_vector_store == True):
-                print("No action to be taken")
-                st.stop()
-
-            st.session_state.use_az_search_vector_store = True
-            with st.spinner("Processing"):
-                indices = get_az_search_indices()
-                selected_index = st.selectbox(
-                    'Choose Vector Index to use',
-                    indices
-                )
-                # Step 3: Create embeddings and store in Vector store
-                vector_store = get_az_search_vector_store(selected_index)
-
-                # Step 4: Get conversation chain
-                st.session_state.conversation = get_conversation_chain(
-                    vector_store=vector_store)
-
-                st.write('You selected:', selected_index)
-                st.session_state.selected_index = selected_index
-                st.session_state.has_vectorized_data = True
-
-        else:
-
-            if ((st.session_state.use_az_search_vector_store == False) and
-                    (st.session_state.has_vectorized_data == True)):
-                print("No action to be taken")
-                st.stop()
-
-            st.session_state.use_az_search_vector_store = False
-            st.subheader("Choose your knowledge base")
-            pdf_docs = st.file_uploader(
-                "Upload your PDFs here and click on 'Process' ", accept_multiple_files=True)
-            if st.button("Process", type="primary"):
-
-                if len(pdf_docs) != 0:
-
-                    # process the information from PDFs
-                    with st.spinner("Processing"):
-
-                        # Step 1: Get raw contents from PDFs
-                        raw_text = get_pdf_text(pdf_docs)
-
-                        # Step 2: Get the chunks of the text
-                        text_chunks = get_text_chunks(raw_text)
-                        st.write(
-                            f"Total length of the chunks: {len(text_chunks)}")
-                        st.write(text_chunks)
-
-                        # Step 3: Create embeddings and store in Vector store
-                        vector_store = get_vectors(text_chunks)
-
-                        # Step 4: Get conversation chain
-                        st.session_state.conversation = get_conversation_chain(
-                            vector_store=vector_store)
-
-                        st.session_state.has_vectorized_data = True
-
-        # add_sidebar = st.sidebar.selectbox(
-        #     "EDSP Data Science", ('Data Engineering', 'Model Training'))
+    st.image("img/arch.png")
 
 
 if __name__ == "__main__":
