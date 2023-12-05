@@ -85,7 +85,7 @@ def main():
     if "selected_index" not in st.session_state:
         st.session_state.selected_index = None
 
-    st.header("Chat with your Data :books:")
+    st.header("Chat with your Data (Cognitive Search) :books:")
     user_question = st.text_input("Ask a question about your documents:")
     if user_question:
         handle_user_input(user_question)
@@ -97,65 +97,25 @@ def main():
 
     with st.sidebar:
 
-        on = st.toggle('Use Azure AI Search Vector Store', value=True)
-        if on:
-            if (st.session_state.use_az_search_vector_store == True):
-                print("No action to be taken")
-                st.stop()
+        st.session_state.use_az_search_vector_store = True
+        indices = get_az_search_indices()
+        selected_index = st.selectbox(
+            'Choose Vector Index to use',
+            indices
+        )
+        st.write('You selected:', selected_index)
+        st.session_state.selected_index = selected_index
 
-            st.session_state.use_az_search_vector_store = True
+        if (selected_index != st.session_state.selected_index):
             with st.spinner("Processing"):
-                indices = get_az_search_indices()
-                selected_index = st.selectbox(
-                    'Choose Vector Index to use',
-                    indices
-                )
+
                 # Step 3: Create embeddings and store in Vector store
                 vector_store = get_az_search_vector_store(selected_index)
 
                 # Step 4: Get conversation chain
                 st.session_state.conversation = get_conversation_chain(
                     vector_store=vector_store)
-
-                st.write('You selected:', selected_index)
-                st.session_state.selected_index = selected_index
                 st.session_state.has_vectorized_data = True
-
-        else:
-
-            if ((st.session_state.use_az_search_vector_store == False) and
-                    (st.session_state.has_vectorized_data == True)):
-                print("No action to be taken")
-                st.stop()
-
-            st.session_state.use_az_search_vector_store = False
-            st.subheader("Choose your knowledge base")
-            pdf_docs = st.file_uploader(
-                "Upload your PDFs here and click on 'Process' ", accept_multiple_files=True)
-            if st.button("Process", type="primary"):
-
-                if len(pdf_docs) != 0:
-
-                    # process the information from PDFs
-                    with st.spinner("Processing"):
-
-                        # Step 1: Get raw contents from PDFs
-                        raw_text = get_pdf_text(pdf_docs)
-
-                        # Step 2: Get the chunks of the text
-                        text_chunks = get_text_chunks(raw_text)
-                        st.write(
-                            f"Total length of the chunks: {len(text_chunks)}")
-                        st.write(text_chunks)
-
-                        # Step 3: Create embeddings and store in Vector store
-                        vector_store = get_vectors(text_chunks)
-
-                        # Step 4: Get conversation chain
-                        st.session_state.conversation = get_conversation_chain(
-                            vector_store=vector_store)
-
-                        st.session_state.has_vectorized_data = True
 
         # add_sidebar = st.sidebar.selectbox(
         #     "EDSP Data Science", ('Data Engineering', 'Model Training'))
