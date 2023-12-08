@@ -47,7 +47,7 @@ def get_az_search_indices():
     return ["azure-plat-services-vector-search", "langchain-vector-demo"]
 
 
-def get_index_fields(index_name):
+def get_index_fields(index_name, embedding_function):
     if index_name == "azure-plat-services-vector-search":
         fields = [
             SimpleField(name="id", type=SearchFieldDataType.String,

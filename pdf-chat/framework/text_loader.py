@@ -111,7 +111,7 @@ def get_az_search_vector_store(index_name):
         print("Embeddings not initialized. Initializing now.")
         return
 
-    fields = get_index_fields(index_name)
+    fields = get_index_fields(index_name, embeddings.embed_query)
     print(f"Index Fields: {fields}")
 
     vector_store: AzureSearch = AzureSearch(
