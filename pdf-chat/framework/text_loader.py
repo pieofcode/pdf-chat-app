@@ -15,7 +15,13 @@ from azure.core.credentials import AzureKeyCredential
 from azure.search.documents import SearchClient, SearchIndexingBufferedSender
 from azure.search.documents.indexes import SearchIndexClient
 from langchain.vectorstores.azuresearch import AzureSearch
-from pathlib import Path
+from langchain.schema import format_document
+from langchain.prompts import ChatPromptTemplate
+from langchain.prompts.prompt import PromptTemplate
+from operator import itemgetter
+from langchain.schema.output_parser import StrOutputParser
+from langchain.schema.runnable import RunnableLambda, RunnablePassthrough, RunnableMap
+
 import dotenv
 from .az_ai_search_helper import *
 
@@ -52,6 +58,9 @@ langchain.verbose = False
 
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 10
+
+DEFAULT_DOCUMENT_PROMPT = PromptTemplate.from_template(
+    template="{page_content}")
 
 
 def get_pdf_text(files):
@@ -154,3 +163,98 @@ def get_conversation_chain(vector_store):
     )
 
     return conversation_chain
+
+
+def _combine_documents(docs, document_prompt=DEFAULT_DOCUMENT_PROMPT, document_separator="\n\n"):
+    doc_strings = [format_document(doc, document_prompt) for doc in docs]
+    return document_separator.join(doc_strings)
+
+
+def get_chat_llm_chain(prompt, vector_store):
+    chat_llm = AzureChatOpenAI(
+        azure_deployment=os.environ["AZURE_CHATGPT_DEPLOYMENT_NAME"],
+        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+        openai_api_type="azure",
+        openai_api_version=os.environ["AZURE_OPENAI_API_VERSION"],
+        openai_api_key=os.environ["AZURE_OPENAI_API_KEY"],
+        temperature=0.5
+    )
+    retriever = vector_store.as_retriever()
+
+    inputs = RunnableMap({
+        "docs": RunnablePassthrough() | retriever,
+        "question": RunnablePassthrough()
+    })
+
+    # Now we retrieve the documents
+    context = RunnableMap({
+        "context": RunnablePassthrough() | retriever | _combine_documents,
+        "question": RunnablePassthrough(),
+        "docs": RunnablePassthrough() | retriever,
+    })
+
+    context2 = RunnablePassthrough.assign(
+        context=lambda x: _combine_documents(x["docs"]),
+    )
+
+    find_answer = RunnableMap({
+        "answer":  prompt | chat_llm | StrOutputParser(),
+        "docs": lambda x: x["docs"],
+    })
+
+    c2 = inputs | context2 | find_answer
+
+    # c1 = context | find_answer
+    # c = context | prompt | chat_llm  | StrOutputParser()
+
+    return c2
+
+
+def get_llm_chain(prompt, vector_store):
+    chat_llm = AzureChatOpenAI(
+        azure_deployment=os.environ["AZURE_CHATGPT_DEPLOYMENT_NAME"],
+        azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
+        openai_api_type="azure",
+        openai_api_version=os.environ["AZURE_OPENAI_API_VERSION"],
+        openai_api_key=os.environ["AZURE_OPENAI_API_KEY"],
+        temperature=0.5
+    )
+    retriever = vector_store.as_retriever()
+
+    inputs = RunnableMap({
+        "docs": RunnablePassthrough() | retriever,
+        "question": RunnablePassthrough()
+    })
+
+    # Now we retrieve the documents
+    context = RunnableMap({
+        "context": RunnablePassthrough() | retriever | _combine_documents,
+        "question": RunnablePassthrough(),
+        "docs": RunnablePassthrough() | retriever,
+    })
+
+    context2 = RunnablePassthrough.assign(
+        context=lambda x: _combine_documents(x["docs"]),
+    )
+
+    find_answer = RunnableMap({
+        "answer":  prompt | chat_llm | StrOutputParser(),
+        "docs": lambda x: x["docs"],
+    })
+
+    c2 = inputs | context2 | find_answer
+
+    # c1 = context | find_answer
+    # c = context | prompt | chat_llm  | StrOutputParser()
+
+    return c2
+
+
+def ask(question, llm_chain):
+    answer = llm_chain.invoke(question)
+    return answer
+
+
+# generate a function to take a list of array and sort it by the first element
+def sort_by_first_element(arr):
+    return sorted(arr, key=lambda x: x[0])

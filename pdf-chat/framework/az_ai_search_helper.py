@@ -9,15 +9,14 @@ from azure.search.documents.indexes import SearchIndexClient
 from langchain.vectorstores.azuresearch import AzureSearch
 from langchain.embeddings import AzureOpenAIEmbeddings
 from azure.search.documents.indexes.models import (
-    FreshnessScoringFunction,
-    FreshnessScoringParameters,
-    ScoringProfile,
-    SearchableField,
-    SearchField,
-    SearchFieldDataType,
-    SimpleField,
-    TextWeights,
+    SemanticSettings,
+    SemanticConfiguration,
+    PrioritizedFields,
+    SemanticField
 )
+from azure.search.documents.models import *
+from azure.search.documents.indexes.models import *
+
 
 env_name = os.environ["APP_ENV"] if "APP_ENV" in os.environ else "local"
 
@@ -29,12 +28,23 @@ with open(env_file_path) as f:
 # print(os.environ)
 
 
+def get_az_search_index_client():
+    endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
+    key = os.environ["AZURE_SEARCH_ADMIN_KEY"]
+
+    credential = AzureKeyCredential(key)
+
+    index_client = SearchIndexClient(endpoint=endpoint, credential=credential)
+    return index_client
+
+
 def get_az_search_client():
-    endpoint = os.environ["AZURE_SEARCH_ENDPOINT"]
+    endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
     index_name = os.environ["AZURE_SEARCH_INDEX_NAME"]
     key = os.environ["AZURE_SEARCH_ADMIN_KEY"]
 
     credential = AzureKeyCredential(key)
+
     client = SearchClient(endpoint=endpoint,
                           index_name=index_name,
                           credential=credential)
@@ -43,8 +53,12 @@ def get_az_search_client():
 
 def get_az_search_indices():
 
+    service_client = get_az_search_index_client()
     # Get all the indices from the Azure Search service
-    return ["azure-plat-services-vector-search", "langchain-vector-demo"]
+    result = service_client.list_index_names()
+    names = [x for x in result]
+    # names = ["azure-plat-services-vector-search", "langchain-vector-demo"]
+    return names
 
 
 def get_index_fields(index_name, embedding_function):
@@ -91,3 +105,36 @@ def get_index_fields(index_name, embedding_function):
         ]
 
     return fields
+
+
+def create_cogsearch_index(index_name, embeddings):
+
+    print(f"Creating index: {index_name}")
+
+    endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
+    key = os.environ["AZURE_SEARCH_ADMIN_KEY"]
+
+    vector_store_en: AzureSearch = AzureSearch(
+        azure_search_endpoint=endpoint,
+        azure_search_key=key,
+        index_name=index_name,
+        embedding_function=embeddings.embed_query,
+        semantic_configuration_name='config',
+        semantic_settings=SemanticSettings(
+            default_configuration='config',
+            configurations=[
+                SemanticConfiguration(
+                    name='config',
+                    prioritized_fields=PrioritizedFields(
+                        title_field=SemanticField(field_name='content'),
+                        prioritized_content_fields=[
+                            SemanticField(field_name='content')],
+                        prioritized_keywords_fields=[
+                            SemanticField(field_name='metadata')]
+                    ))
+            ])
+    )
+
+
+def upload_pdf_to_cogsearch_index(index_name, pdf_docs):
+    pass

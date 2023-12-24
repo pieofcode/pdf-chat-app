@@ -12,4 +12,7 @@ tenacity==8.2.3
 tiktoken==0.5.1
 azure-identity==1.15.0
 azure-search-documents==11.4.0b8
-
+streamlit-agraph==0.0.45
+gremlinpython==3.7.1
+azure-storage-blob==12.19.0
+azure-cosmos==4.5.1
