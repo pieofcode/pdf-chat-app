@@ -21,6 +21,7 @@ from langchain.prompts.prompt import PromptTemplate
 from operator import itemgetter
 from langchain.schema.output_parser import StrOutputParser
 from langchain.schema.runnable import RunnableLambda, RunnablePassthrough, RunnableMap
+from langchain.docstore.document import Document
 
 import dotenv
 from .az_ai_search_helper import *
@@ -111,6 +112,49 @@ def get_vectors(chunks):
     # vector_store = FAISS.from_embeddings(text_embedding_pairs_list, embeddings)
 
     return vector_store
+
+
+def extract_and_split_documents(pdf_file):
+    reader = PdfReader(pdf_file)
+    docs = []
+    page_num = 1
+    for page in reader.pages:
+        docs.append(Document(page_content=page.extract_text(),
+                    metadata={'source': f"{pdf_file.name}", 'page': page_num}))
+        page_num += 1
+
+    text_splitter = CharacterTextSplitter(
+        chunk_size=1000, chunk_overlap=100)
+    pages = text_splitter.split_documents(docs)
+
+    return pages
+
+
+def upload_docs_to_cogsearch_index(index_name, pdf_files):
+
+    global embeddings
+    if not embeddings:
+        print("Embeddings not initialized. Initializing now.")
+        return
+
+    endpoint = os.environ["AZURE_SEARCH_SERVICE_ENDPOINT"]
+    key = os.environ["AZURE_SEARCH_ADMIN_KEY"]
+    # Get Vector Store
+    vector_store: AzureSearch = AzureSearch(
+        azure_search_endpoint=endpoint,
+        azure_search_key=key,
+        index_name=index_name,
+        embedding_function=embeddings.embed_query,
+    )
+
+    if not vector_store:
+        raise ValueError(
+            f"Index {index_name} does not exist. Please create the index first.")
+
+    for file in pdf_files:
+        docs = extract_and_split_documents(file)
+        print(f"Number of pages: {len(docs)}")
+        vector_store.add_documents(documents=docs)
 
 
 def get_az_search_vector_store(index_name):

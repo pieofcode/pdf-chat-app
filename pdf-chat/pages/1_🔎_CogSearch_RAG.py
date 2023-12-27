@@ -90,7 +90,7 @@ def main():
     if "selected_index" not in st.session_state:
         st.session_state.selected_index = None
 
-    st.header("Chat with your Data (Cognitive Search) :books:")
+    st.header("Chat with your Data (Cognitive Search) :books:", divider='blue')
     # user_question = st.text_input("Ask a question about your documents")
     user_question = st.chat_input("Ask a question about your documents")
     if user_question:

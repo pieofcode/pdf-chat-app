@@ -84,7 +84,7 @@ def main():
     if "has_vectorized_data" not in st.session_state:
         st.session_state.has_vectorized_data = None
 
-    st.header("Chat with your Data (Local Vector Store) :books:")
+    st.header("Chat with your Data (Local Vector Store) :books:", divider='red')
     # user_question = st.text_input("Ask a question about your documents")
     user_question = st.chat_input("Ask a question about your documents")
     if user_question:

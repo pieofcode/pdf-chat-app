@@ -28,7 +28,7 @@ def main():
     if "has_vectorized_data" not in st.session_state:
         st.session_state.has_vectorized_data = None
 
-    st.header("Build your knowledgebase :books:", divider='blue')
+    st.header("Build your knowledgebase :books:", divider='green')
 
     index_name = st.text_input(
         'Cognitive Search Index name', placeholder='Name of the index')
@@ -45,8 +45,9 @@ def main():
                 # Step 1: Create Azure Cognitive Search Index
                 # Step 2: Upload PDFs to Azure Cognitive Search Index
                 create_cogsearch_index(st.session_state.index_name, embeddings)
-                upload_pdf_to_cogsearch_index(
+                upload_docs_to_cogsearch_index(
                     st.session_state.index_name, pdf_docs)
+                st.success("Index created successfully")
         else:
             st.write("Please upload PDF documents")
 

@@ -14,6 +14,10 @@ from azure.search.documents.indexes.models import (
     PrioritizedFields,
     SemanticField
 )
+from langchain.document_loaders import TextLoader, PyPDFLoader
+from langchain.text_splitter import CharacterTextSplitter
+from langchain.text_splitter import TextSplitter
+
 from azure.search.documents.models import *
 from azure.search.documents.indexes.models import *
 
@@ -136,5 +140,3 @@ def create_cogsearch_index(index_name, embeddings):
     )
 
 
-def upload_pdf_to_cogsearch_index(index_name, pdf_docs):
-    pass

@@ -1,5 +1,6 @@
 docx2txt==0.8
 PyPDF2
+pypdf==3.17.4
 python-dotenv
 faiss-cpu==1.7.4
 langchain==0.0.340
