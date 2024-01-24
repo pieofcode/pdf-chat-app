@@ -30,9 +30,8 @@ class LLMStepRun(BaseModel):
 
 
 class BatchRun(BaseModel):
-    id: str 
+    id: str
     context: str
-    category: str
     index_name: str
     created_at: str = datetime.now().isoformat()
 
@@ -41,9 +40,11 @@ class StepRun(BaseModel):
     id: str
     batch_id: str
     context: str
+    name: str
     category: str
     group: str
     question: str
+    persona: dict
     answer: str
     charges: dict
     docs: list[dict]
@@ -53,6 +54,7 @@ class StepRun(BaseModel):
 
 class Questionnaire(BaseModel):
     id: str
+    name: str
     category: str
     title: str
     description: str
@@ -60,6 +62,31 @@ class Questionnaire(BaseModel):
     questions: list[dict]
     _ts: int
     _etag: str
+
+
+class Answer(BaseModel):
+    answer: str
+    persona: str
+
+
+class PersonaQnA(BaseModel):
+    question: str
+    answers: list[Answer]
+
+
+class QnAGroup(BaseModel):
+    group: str
+    responses: list[PersonaQnA]
+
+
+class QnASummary(BaseModel):
+    id: str
+    context: str
+    name: str
+    category: str
+    title: str
+    description: str
+    questions: list[QnAGroup]
 
 
 class ContextInfo(BaseModel):

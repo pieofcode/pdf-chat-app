@@ -1,5 +1,8 @@
 import os
 import openai
+import base64
+from io import StringIO, BytesIO
+import requests
 import langchain
 from tenacity import retry, stop_after_attempt, wait_fixed, wait_exponential, wait_random_exponential
 from PyPDF2 import PdfReader
@@ -57,8 +60,11 @@ embeddings: AzureOpenAIEmbeddings = AzureOpenAIEmbeddings(
 
 langchain.verbose = False
 
-CHUNK_SIZE = 1000
-CHUNK_OVERLAP = 10
+CHUNK_SIZE = 500
+OVERLAP_PCT = 25
+
+CHUNK_OVERLAP = int(CHUNK_SIZE * (OVERLAP_PCT / 100))
+RETRIEVAL_COUNT = 10
 
 DEFAULT_DOCUMENT_PROMPT = PromptTemplate.from_template(
     template="{page_content}")
@@ -124,7 +130,7 @@ def extract_and_split_documents(pdf_file):
         page_num += 1
 
     text_splitter = CharacterTextSplitter(
-        chunk_size=1000, chunk_overlap=100)
+        chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP)
     pages = text_splitter.split_documents(docs)
 
     return pages
@@ -214,44 +220,45 @@ def _combine_documents(docs, document_prompt=DEFAULT_DOCUMENT_PROMPT, document_s
     return document_separator.join(doc_strings)
 
 
-def get_chat_llm_chain(prompt, vector_store):
-    chat_llm = AzureChatOpenAI(
-        azure_deployment=os.environ["AZURE_CHATGPT_DEPLOYMENT_NAME"],
+def get_llm_chain_v2(prompt, vector_store, deployment_name="", top_k=5):
+
+    if not deployment_name:
+        deployment_name = os.environ["AZURE_CHATGPT_DEPLOYMENT_NAME"]
+
+    llm = AzureChatOpenAI(
+        azure_deployment=deployment_name,
         azure_endpoint=os.environ["AZURE_OPENAI_ENDPOINT"],
         openai_api_type="azure",
         openai_api_version=os.environ["AZURE_OPENAI_API_VERSION"],
         openai_api_key=os.environ["AZURE_OPENAI_API_KEY"],
         temperature=0.5
     )
-    retriever = vector_store.as_retriever()
-
-    inputs = RunnableMap({
-        "docs": RunnablePassthrough() | retriever,
-        "question": RunnablePassthrough()
-    })
-
-    # Now we retrieve the documents
-    context = RunnableMap({
-        "context": RunnablePassthrough() | retriever | _combine_documents,
-        "question": RunnablePassthrough(),
-        "docs": RunnablePassthrough() | retriever,
-    })
-
-    context2 = RunnablePassthrough.assign(
-        context=lambda x: _combine_documents(x["docs"]),
+    retriever = vector_store.as_retriever(
+        search_type="similarity",
+        search_kwargs={"k": top_k}
     )
 
-    find_answer = RunnableMap({
-        "answer":  prompt | chat_llm | StrOutputParser(),
-        "docs": lambda x: x["docs"],
-    })
+    # Now we retrieve the documents
+    retrieved_docs = RunnablePassthrough.assign(
+        docs=itemgetter("question") | retriever
+    )
 
-    c2 = inputs | context2 | find_answer
+    # Now we construct the inputs for the final prompt
+    final_inputs = {
+        "context": lambda x: _combine_documents(x["docs"]),
+        "question": itemgetter("question"),
+        "persona": itemgetter("persona") or "",
+    }
+    # And finally, we do the part that returns the answers
+    answer = {
+        "answer": final_inputs | prompt | llm | StrOutputParser(),
+        "docs": itemgetter("docs"),
+    }
 
-    # c1 = context | find_answer
-    # c = context | prompt | chat_llm  | StrOutputParser()
+    # And now we put it all together!
+    chain = retrieved_docs | answer
 
-    return c2
+    return chain
 
 
 def get_llm_chain(prompt, vector_store):
@@ -302,3 +309,72 @@ def ask(question, llm_chain):
 # generate a function to take a list of array and sort it by the first element
 def sort_by_first_element(arr):
     return sorted(arr, key=lambda x: x[0])
+
+
+def gpt4v_completion(image_data, question, history=None):
+
+    # To convert to a string based IO:
+    # stringio = StringIO(image_data.decode("utf-8"))
+    b64_encoded_image = base64.b64encode(image_data).decode('utf-8')
+    # print(f"b64_encoded_image: {b64_encoded_image}")
+    # Configuration
+    GPT4V_KEY = os.environ["AZURE_OPENAI_API_KEY_VISION"]
+    headers = {
+        "Content-Type": "application/json",
+        "api-key": GPT4V_KEY,
+    }
+
+    base_url = f"{os.environ['AZURE_OPENAI_ENDPOINT_VISION']}openai/deployments/{os.environ['AZURE_GPT4_VISION_DEPLOYMENT_NAME']}"
+    # Prepare endpoint, headers, and request body
+    GPT4V_ENDPOINT = f"{base_url}/chat/completions?api-version=2023-12-01-preview"
+
+    # Payload for the request
+    payload = {
+        "messages": [
+            {
+                "role": "system",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": "You are an AI assistant that helps people find information."
+                    }
+                ]
+            },
+            {
+                "role": "user", "content":
+                [
+                    {
+                        "type": "text",
+                        "text": question
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:image/jpeg;base64,{b64_encoded_image}"
+                        }
+                    }
+                ]
+            }
+        ],
+        "temperature": 0.7,
+        "top_p": 0.95,
+        "max_tokens": 800
+    }
+
+    # Send request
+    try:
+        response = requests.post(GPT4V_ENDPOINT, headers=headers, json=payload)
+        print(response.json())
+        # Will raise an HTTPError if the HTTP request returned an unsuccessful status code
+        response.raise_for_status()
+
+        # Handle the response as needed (e.g., print or process)
+        print(response.json())
+        return response.json()
+
+    except requests.RequestException as e:
+        raise SystemExit(f"Failed to make the request. Error: {e}")
+
+    
+    except Exception as e:
+        raise SystemExit(f"Unknown error. Error: {e}") 

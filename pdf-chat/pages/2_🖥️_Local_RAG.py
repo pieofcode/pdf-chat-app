@@ -72,7 +72,7 @@ def handle_user_input(question):
 
 def main():
 
-    st.set_page_config(page_title="PDF Chatbot", page_icon=":books:")
+    st.set_page_config(page_title="PDF Chatbot", page_icon=":books:", layout="wide")
     st.write(css, unsafe_allow_html=True)
 
     # Initialize Session state

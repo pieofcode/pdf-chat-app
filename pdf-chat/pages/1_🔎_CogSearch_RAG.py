@@ -72,7 +72,8 @@ def handle_user_input(question):
 
 def main():
 
-    st.set_page_config(page_title="PDF Chatbot", page_icon=":books:")
+    st.set_page_config(page_title="PDF Chatbot",
+                       page_icon=":books:", layout="wide")
     st.write(css, unsafe_allow_html=True)
 
     # Initialize Session state
@@ -121,6 +122,7 @@ def main():
         st.write('You selected:', selected_index)
 
         if (selected_index != st.session_state.selected_index):
+            st.session_state.chat_history = None
             st.session_state.selected_index = selected_index
             with st.spinner("Processing"):
 
